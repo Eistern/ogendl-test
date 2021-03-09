@@ -11,7 +11,7 @@ int g_mouse_x = 0;
 int g_mouse_y = 0;
 
 float g_radius = 1.0f;
-float g_angle_x = 0.0f;
+float g_angle_x = 270.0f;
 float g_angle_z = 90.0f;
 
 float g_camera_position[3] = {0.0f, 1.0f, 0.0f};
@@ -57,6 +57,11 @@ void renderScene() {
         std::cout << "Current camera position: x=" << g_camera_position[0] << " y=" << g_camera_position[1] << " z=" << g_camera_position[2] << std::endl;
     }
 
+    glTranslatef(3.0f, 3.0f, 3.0f);
+    glColor3f(0.0,1.0,0.0);
+    glutWireSphere(2.0f, 10, 10);
+
+    glTranslatef(-3.0f, -3.0f, -3.0f);
     glColor3f(0.0,1.0,1.0);
     glBegin(GL_POLYGON);
         glVertex3f(0.0,0.0,1.0);
@@ -89,16 +94,16 @@ void renderScene() {
 }
 
 void keyboardFunc(int pressed, int x, int y) {
-    float moment_multiplier = 0;
+    float moment_multiplier = 0.25;
     switch (pressed) {
         case GLUT_KEY_UP:
-            moment_multiplier = 1.0f;
+            moment_multiplier *= 1.0f;
             break;
         case GLUT_KEY_DOWN:
-            moment_multiplier = -1.0f;
+            moment_multiplier *= -1.0f;
             break;
         default:
-            break;
+            return;
     }
     float diff_x = moment_multiplier * (g_camera_direction[0] - g_camera_position[0]);
     float diff_y = moment_multiplier * (g_camera_direction[1] - g_camera_position[1]);
