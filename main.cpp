@@ -95,6 +95,15 @@ void renderScene() {
 
 void keyboardFunc(int pressed, int x, int y) {
     float moment_multiplier = 0.25;
+
+    float diff_x = (g_camera_direction[0] - g_camera_position[0]);
+    float diff_y = (g_camera_direction[1] - g_camera_position[1]);
+    float diff_z = (g_camera_direction[2] - g_camera_position[2]);
+
+    float cross_x = diff_y * g_up[2] - diff_z * g_up[1];
+    float cross_y = diff_z * g_up[0] - diff_x * g_up[2];
+    float cross_z = diff_x * g_up[1] - diff_y * g_up[0];
+    
     switch (pressed) {
         case GLUT_KEY_UP:
             moment_multiplier *= 1.0f;
@@ -102,12 +111,28 @@ void keyboardFunc(int pressed, int x, int y) {
         case GLUT_KEY_DOWN:
             moment_multiplier *= -1.0f;
             break;
+        case GLUT_KEY_RIGHT:
+            moment_multiplier *= 1.0f;
+            diff_x = cross_x;
+            diff_y = cross_y;
+            diff_z = cross_z;
+            break;
+        case GLUT_KEY_LEFT:
+            diff_x = cross_x;
+            diff_y = cross_y;
+            diff_z = cross_z;
+            moment_multiplier *= -1.0f;
+            break;
         default:
             return;
     }
-    float diff_x = moment_multiplier * (g_camera_direction[0] - g_camera_position[0]);
-    float diff_y = moment_multiplier * (g_camera_direction[1] - g_camera_position[1]);
-    float diff_z = moment_multiplier * (g_camera_direction[2] - g_camera_position[2]);
+
+    float normalization_c = 1 / std::sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
+    moment_multiplier *= normalization_c;
+
+    diff_x *= moment_multiplier;
+    diff_y *= moment_multiplier;
+    diff_z *= moment_multiplier;
 
     g_camera_position[0] += diff_x;
     g_camera_position[1] += diff_y;
