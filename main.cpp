@@ -1,16 +1,18 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <chrono>
 #include <GL/glut.h>
 
 #define PI 3.14159265
 
-bool g_debug = true;
+const bool g_debug = true;
+const float g_radius = 1.0f;
+int g_max_framerate = 60;
 
 int g_mouse_x = 0;
 int g_mouse_y = 0;
 
-float g_radius = 1.0f;
 float g_angle_x = 270.0f;
 float g_angle_z = 90.0f;
 
@@ -18,7 +20,16 @@ float g_camera_position[3] = {0.0f, 1.0f, 0.0f};
 float g_camera_direction[3] = {0.0f, 0.0f, 0.0f};
 float g_up[3] = {0.0f, 0.0f, 1.0f};
 
-bool g_pressed = false;
+bool g_mouse_pressed = false;
+
+struct {
+    bool forward = false;
+    bool backward = false;
+    bool left = false;
+    bool right = false;
+} g_directions;
+
+long g_last_camera_update = 0;
 
 void changeSize(GLint width, GLint height) {
     if (height == 0) {
@@ -59,7 +70,7 @@ void renderScene() {
 
     glTranslatef(3.0f, 3.0f, 3.0f);
     glColor3f(0.0,1.0,0.0);
-    glutWireSphere(2.0f, 10, 10);
+    glutWireSphere(2.0f, 16, 16);
 
     glTranslatef(-3.0f, -3.0f, -3.0f);
     glColor3f(0.0,1.0,1.0);
@@ -93,40 +104,7 @@ void renderScene() {
     glutSwapBuffers();
 }
 
-void keyboardFunc(int pressed, int x, int y) {
-    float moment_multiplier = 0.25;
-
-    float diff_x = (g_camera_direction[0] - g_camera_position[0]);
-    float diff_y = (g_camera_direction[1] - g_camera_position[1]);
-    float diff_z = (g_camera_direction[2] - g_camera_position[2]);
-
-    float cross_x = diff_y * g_up[2] - diff_z * g_up[1];
-    float cross_y = diff_z * g_up[0] - diff_x * g_up[2];
-    float cross_z = diff_x * g_up[1] - diff_y * g_up[0];
-    
-    switch (pressed) {
-        case GLUT_KEY_UP:
-            moment_multiplier *= 1.0f;
-            break;
-        case GLUT_KEY_DOWN:
-            moment_multiplier *= -1.0f;
-            break;
-        case GLUT_KEY_RIGHT:
-            moment_multiplier *= 1.0f;
-            diff_x = cross_x;
-            diff_y = cross_y;
-            diff_z = cross_z;
-            break;
-        case GLUT_KEY_LEFT:
-            diff_x = cross_x;
-            diff_y = cross_y;
-            diff_z = cross_z;
-            moment_multiplier *= -1.0f;
-            break;
-        default:
-            return;
-    }
-
+void updateCameraVectors(float diff_x, float diff_y, float diff_z, float moment_multiplier) {
     float normalization_c = 1 / std::sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
     moment_multiplier *= normalization_c;
 
@@ -141,35 +119,117 @@ void keyboardFunc(int pressed, int x, int y) {
     g_camera_direction[0] += diff_x;
     g_camera_direction[1] += diff_y;
     g_camera_direction[2] += diff_z;
+}
+
+void updatePositionFunc() {
+    long time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    if (time - g_last_camera_update < 1000 / g_max_framerate) {
+        return;
+    }
+    g_last_camera_update = time;
+
+    float moment_multiplier = 0.25;
+
+    float diff_x = (g_camera_direction[0] - g_camera_position[0]);
+    float diff_y = (g_camera_direction[1] - g_camera_position[1]);
+    float diff_z = (g_camera_direction[2] - g_camera_position[2]);
+
+    float cross_x = diff_y * g_up[2] - diff_z * g_up[1];
+    float cross_y = diff_z * g_up[0] - diff_x * g_up[2];
+    float cross_z = diff_x * g_up[1] - diff_y * g_up[0];
+
+    if (g_directions.forward) {
+        moment_multiplier *= 1.0f;
+        updateCameraVectors(diff_x, diff_y, diff_z, moment_multiplier);
+    }
+
+    if (g_directions.backward) {
+        moment_multiplier *= -1.0f;
+        updateCameraVectors(diff_x, diff_y, diff_z, moment_multiplier);
+    }
+
+    if (g_directions.right) {
+        moment_multiplier *= 1.0f;
+        diff_x = cross_x;
+        diff_y = cross_y;
+        diff_z = cross_z;
+        updateCameraVectors(diff_x, diff_y, diff_z, moment_multiplier);
+    }
+
+    if (g_directions.left) {
+        diff_x = cross_x;
+        diff_y = cross_y;
+        diff_z = cross_z;
+        moment_multiplier *= -1.0f;
+        updateCameraVectors(diff_x, diff_y, diff_z, moment_multiplier);
+    }
 
     if (g_debug) {
         std::cout << "Camera angles:" << " angle_x=" << g_angle_x << " angle_z=" << g_angle_z << std::endl;
         std::cout << "Current camera position: x=" << g_camera_position[0] << " y=" << g_camera_position[1] << " z=" << g_camera_position[2] << std::endl;
-        std::cout << "Key pressed: " << pressed << std::endl;
+        std::cout << "Keys pressed: f=" << g_directions.forward << " b=" << g_directions.backward << " r=" << g_directions.right << " l=" << g_directions.left << std::endl;
     }
 
     glutPostRedisplay();
 }
 
+void keyboardFunc(int pressed, int x, int y) {
+    switch (pressed) {
+        case GLUT_KEY_UP:
+            g_directions.forward = true;
+            break;
+        case GLUT_KEY_DOWN:
+            g_directions.backward = true;
+            break;
+        case GLUT_KEY_RIGHT:
+            g_directions.right = true;
+            break;
+        case GLUT_KEY_LEFT:
+            g_directions.left = true;
+            break;
+        default:
+            return;
+    }
+}
+
+void keyboardUpFunc(int released, int x, int y) {
+    switch (released) {
+        case GLUT_KEY_UP:
+            g_directions.forward = false;
+            break;
+        case GLUT_KEY_DOWN:
+            g_directions.backward = false;
+            break;
+        case GLUT_KEY_RIGHT:
+            g_directions.right = false;
+            break;
+        case GLUT_KEY_LEFT:
+            g_directions.left = false;
+            break;
+        default:
+            return;
+    }
+}
+
 void mouseValidator(int button, int state, int x, int y) {
-    if (!g_pressed && button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+    if (!g_mouse_pressed && button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
         if (g_debug) {
             std::cout << "Left key pressed on: x=" << x << " y=" << y << std::endl;
         }
-        g_pressed = true;
+        g_mouse_pressed = true;
     }
-    if (g_pressed && button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
+    if (g_mouse_pressed && button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
         if (g_debug) {
             std::cout << "Left key released on: x=" << x << " y" << y << std::endl;
         }
-        g_pressed = false;
+        g_mouse_pressed = false;
     }
     g_mouse_x = x;
     g_mouse_y = y;
 }
 
 void leftMouseListener(int x, int y) {
-    if (!g_pressed) {
+    if (!g_mouse_pressed) {
         return;
     }
 
@@ -212,13 +272,17 @@ int main(int argc, char** argv) {
 
     glutDisplayFunc(renderScene);
     glutReshapeFunc(changeSize);
+
+    glutIgnoreKeyRepeat(true);
     glutSpecialFunc(keyboardFunc);
+    glutSpecialUpFunc(keyboardUpFunc);
 
     glutMouseFunc(mouseValidator);
     glutMotionFunc(leftMouseListener);
 
     glEnable(GL_DEPTH_TEST);
 
+    glutIdleFunc(updatePositionFunc);
     glutMainLoop();
     return 0;
 }
